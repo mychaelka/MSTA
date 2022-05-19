@@ -1,0 +1,180 @@
+---
+title: "What are the most important factors behind successful decathlon athletes?"
+author: "Michaela Kecskesova"
+date: "19.5.2022"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+
+## Introduction
+
+The decathlon is a combined event in athletics consisting of ten track and field events - specifically 100-meter, 400-meter and 1500-meter runs, the 110-meter high hurdles, the javelin and discus throws, shot put, pole vault, high jump, and long jump. 
+These events are held over two consecutive days and the winners are determined by the combined performance in all of them.
+
+Traditionally, the title of "World's Greatest Athlete" has been given to the person who wins the decathlon. But what factors seem to be the determinants of success in a discipline consisting of so many individual events? 
+
+This project uses factor analysis to analyse data from men's olympic decathlon to assess what factors could possibly be the most important when determining the overall result.
+
+The results are very intuitive - individual disciplines can be grouped to three factors, with disciplines under each factor requiring different approach to training - targeting strength and explosive power, upper body strength or endurance. 
+
+```{r libs, warning=FALSE, message=FALSE}
+# Necessary libraries
+library(DescTools)
+library(ellipse)
+library(car)
+library(psych)
+```
+
+## Data
+Data come from the results of the men's Decathlon at the
+Athens Summer Olympics, 2004. These include results of each discipline and also standardized scores of individual athletes along with total score, their country and an information about whether the athlete finished or not. 
+
+Data also includes some athletes that did not finish all of the events. These athletes were removed from the analysis so that their missing results would not bias the estimates. 
+
+For the analysis, only the standardized scores were used as they are all on the same fixed scale and therefore are directly comparable. 
+
+```{r data_clean}
+rm(list=ls())
+load("Decathlon.RData")
+# omit athletes who did not complete all disciplines
+data <- na.omit(Decathlon)[,15:24]  # use only score variables 15-24 
+```
+
+## Analysis 
+
+```{r corrmat, results='hide'}
+# correlation matrix
+(R <- cor(data,use="pairwise.complete.obs"))
+```
+
+From the correlation matrix, we can get a general idea about which of the events are correlated (the corresponding matrix element approaches -1 or 1), however, as the matrix is quite large for 10 variables, correlation plots might be more intuitive. Output from the correlation matrix was suppressed in this document due to its size.
+
+```{r corrmatrix, echo=FALSE, warning=FALSE}
+PlotCorr(R)
+```
+
+From the correlation matrix and individual correlation plots (for two more see last section of this document - additional codes and figures) we can get the idea that some of the variables seem to be (mostly positively) correlated. This can be further formally tested by Bartlett's $\chi^2$ test:
+
+```{r corrtest}
+# is this an appropriate method? 
+# is correlation matrix siginificantly different from unit matrix?
+cortest.bartlett(R, n = 100, diag = TRUE)
+```
+
+$p$-value of the test is extremely small.
+The test thus rejects the hypothesis that the correlation matrix is equal to unit matrix (in which case the individual variables would not be correlated and therefore performing factor analysis would lose its purpose). Usage of factor analysis is thus justified. 
+
+
+At first, the factors are considered to be equal with principal components. With the help of principal components, we can determine the appropriate number of factors behind our variables:
+```{r pca}
+p<-prcomp(x=data, center=T,scale.=T)
+a<-p$sdev^2
+a
+
+# percentage of total variance expl. by the first three components
+sum(a[1:3])/10 
+# percentage of total variance expl. by the first four components
+sum(a[1:4])/10 
+summary(p) 
+```
+
+The cumulative proportion tells us, what percentage of variance would be explained by including the specific number of components. The row above it, the proportion of variance tells us, what additional percentage of variance would be explained by adding the one specific component. 
+
+Taking into account the calculated principal components, we will decide between using three or four factors (3-4 components explain majority of variance of the original variables). 
+
+```{r factor}
+### factors
+f1<-fa(r=R,nfactors=3,rotate="varimax",fm="ml",scores="regression",residuals=T)
+f2<-fa(r=R,nfactors=4,rotate="varimax",fm="ml",scores="regression",residuals=T)
+```
+
+Following plot can be used to indentify the individual factors and divide the variables to "clusters" according to the three factors. The individual observations in the graphs should not be strongly correlated (they should not be lined up forming a linear curve). If there was a significant correlation visible between two of the clusters, we could merge those factors into one, but that is not our case. 
+```{r factor_plot}
+plot(f1)
+# plot(f2) - more complicated output, not used in results 
+```
+Now we have to interpret the computed factor loadings. If two variables both have large loadings for the same factor, then we know they have something in common.
+
+```{r f1}
+# factor loadings
+f1
+# f2 - not used 
+```
+
+According to factor loadings results for three and four factors, it would be better to use three factors, for better interpretability.
+From the results, we can see that there could be three distinct measures within the 10 decathlon disciplines. 
+
+Following the ML2, ML3 an ML1 columns in the output and by using the highest loading per item, we can extract information about which variables could be influenced by which factor. 
+
+Scores for 100m and 400m, along with hurdles, pole vault and the long distance jump are mainly correlated with one factor. Another factor is correlated mainly with the throwing disciplines - javelin throw, discus throw and ball throw, along with the height jump. 
+Third factor is mostly correlated with the 1500m long run. 
+
+## Conclusion
+According to our data and analysis results, there could possibly be three important factors behind the success of the top decathlon athletes.
+First found factor was mostly associated with short-distance running disciplines such as sprints or hurdles. These are disciplines that usually require strength and muscles that are  limber for short bursts of speed, as well as explosive force. Explosive training that targets strength and speed to increase power output could therefore be helpful for advancing in these disciplines.
+
+Second factor was associated with the throwing disciplines - those, on the other hand, require upper body strength and core stability (however, explosive upper body force is also important in this case). To improve performance in these events, training focused on upper body muscles could be beneficial.
+
+Last factor was only correlated with one variable, which is, indeed, different than all the others - the 1500m run. This is the only discipline for which stamina and muscle endurance are of big importance as opposed to strength. Endurance-based training could therefore be used to target the 1500m run discipline. 
+
+
+## Additional codes and figures
+```{r factor_scores, results='hide'}
+# Residuals and factor scores
+f1$residual 
+f1$weights
+factor.scores(x=data,f1)$scores
+```
+
+```{r add_fig}
+# Correlation matrices
+scatterplotMatrix(data,smooth=F,diagonal="histogram",col=c(2,1,4))
+plotcorr(R)
+
+# Scatterplot of factor loading combinations, varimax rotation
+fa_varimax <- factanal(data, factors = 3, rotation = "varimax")
+
+plot(fa_varimax$loadings[,1], 
+     fa_varimax$loadings[,2],
+     xlab = "Factor 1", 
+     ylab = "Factor 2", 
+     ylim = c(-1,1),
+     xlim = c(-1,1),
+     main = "Varimax rotation")
+text(fa_varimax$loadings[,1]-0.08, 
+     fa_varimax$loadings[,2]+0.08,
+     colnames(data),
+     col="blue")
+abline(h = 0, v = 0)
+
+plot(fa_varimax$loadings[,1], 
+     fa_varimax$loadings[,3],
+     xlab = "Factor 1", 
+     ylab = "Factor 3", 
+     ylim = c(-1,1),
+     xlim = c(-1,1),
+     main = "Varimax rotation")
+text(fa_varimax$loadings[,1]-0.08, 
+     fa_varimax$loadings[,3]+0.08,
+     colnames(data),
+     col="blue")
+abline(h = 0, v = 0)
+
+plot(fa_varimax$loadings[,2], 
+     fa_varimax$loadings[,3],
+     xlab = "Factor 2", 
+     ylab = "Factor 3", 
+     ylim = c(-1,1),
+     xlim = c(-1,1),
+     main = "Varimax rotation")
+text(fa_varimax$loadings[,2]-0.08, 
+     fa_varimax$loadings[,3]+0.08,
+     colnames(data),
+     col="blue")
+abline(h = 0, v = 0)
+```
